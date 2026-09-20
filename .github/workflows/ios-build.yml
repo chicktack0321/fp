@@ -1,0 +1,119 @@
+name: iOS Build
+
+# ドキュメントだけの変更ではビルドを回さない。
+# 問題データ（question_master_seed.json）はJSONなので、ここでは除外されず必ず検証される。
+on:
+  push:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+  workflow_dispatch:
+
+jobs:
+  # 問題データの検証はXcodeを必要としないので、無料のUbuntuランナーで先に回す。
+  # macOSランナーは分単価が高い（privateリポジトリでは10倍消費される）ため、
+  # シードの形式ミスでmacOSジョブを2つとも無駄にしないよう手前で落とす。
+  validate-seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 引数なしで3級・2級の両方を検証する。級ごとの期待値（IDの接頭辞・
+      # ありえる選択肢の数・法令基準日）は FPn/AppFlavor.swift から読む
+      - name: Validate question seeds (FP3 / FP2)
+        run: python scripts/validate_seed.py
+
+  build:
+    # Mac実機がないため、GitHub提供のmacOSランナー上でXcodeビルド・テストを検証する。
+    #
+    # 3級と2級はソースを共有しているので、片方だけ通っても意味がない
+    # （級固有の AppFlavor と問題データが噛み合わなければ壊れるのはもう片方）。
+    # fail-fast を切って、両方の結果を一度に見られるようにする。
+    needs: validate-seed
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [FP3App, FP2App]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install XcodeGen and xcparse
+        run: |
+          brew install xcodegen
+          brew install chargepoint/xcparse/xcparse
+
+      - name: Generate Xcode project from project.yml
+        run: xcodegen generate
+
+      - name: Pick an available iOS Simulator
+        id: sim
+        run: |
+          UDID=$(python3 -c "
+          import json, re, subprocess
+          data = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', 'available', '-j']))
+          best = None
+          for runtime, devices in data['devices'].items():
+              m = re.search(r'iOS-(\d+)-(\d+)', runtime)
+              if not m:
+                  continue
+              version = (int(m.group(1)), int(m.group(2)))
+              for d in devices:
+                  if not d['name'].startswith('iPhone') or 'SE' in d['name']:
+                      continue
+                  if best is None or version > best[0]:
+                      best = (version, d['udid'], d['name'])
+          if not best:
+              raise SystemExit('No available iPhone simulator found')
+          print(best[1])
+          ")
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Build and run tests (captures screenshots)
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project FPApp.xcodeproj \
+            -scheme ${{ matrix.app }} \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Extract screenshots from test results
+        if: always()
+        run: |
+          mkdir -p screenshots
+          xcparse screenshots TestResults.xcresult screenshots || true
+          ls -la screenshots
+
+      # アーティファクト名に級を入れる。同名だと2つのジョブが同じ名前で
+      # アップロードして衝突する
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots-${{ matrix.app }}
+          path: screenshots
+          if-no-files-found: warn
+
+      - name: Upload raw .xcresult (for debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-xcresult-${{ matrix.app }}
+          path: TestResults.xcresult
+          if-no-files-found: ignore

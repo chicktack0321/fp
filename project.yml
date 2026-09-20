@@ -1,0 +1,204 @@
+name: FPApp
+
+# 3級と2級は別アプリ（別のバンドルID・別のApp Store登録・別のApp内課金）として出すが、
+# ソースは1本にして共用する。XcodeGen のターゲットを級ごとに立て、
+# 共通の `FPApp/` と級固有の `FP3/` `FP2/` を組み合わせる。
+#
+# 級による違いは次の4つだけで、それ以外に級を意識する場所は無い。
+#   1. `FPn/AppFlavor.swift`   … 表示名・バンドルID・課金プロダクトID・試験制度の数値
+#   2. `FPn/Resources/`        … 問題データとアプリアイコン
+#   3. `FPn/Info.plist`        … ホーム画面に出るアプリ名
+#   4. `FPn/Products.storekit` … シミュレータで価格を読ませるためのテスト用ストア
+
+options:
+  # バンドルIDを明示していないターゲットの既定プレフィクス。
+  # 全ターゲットで PRODUCT_BUNDLE_IDENTIFIER を指定しているため実際には使われないが、
+  # 組織のプレフィクス（英単語特訓・古文特訓・ITパスポート特訓と共通）を記しておく
+  bundleIdPrefix: com.eitango
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+configs:
+  Debug: debug
+  Release: release
+
+# 級をまたいで同じ内容になる設定。片方だけ直して食い違うのを防ぐためにまとめる
+settingGroups:
+  common:
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    MARKETING_VERSION: "1.0"
+    # TestFlightへ上げるたびにワークフローの実行番号で上書きする（同じ番号は再アップロードできない）
+    CURRENT_PROJECT_VERSION: "1"
+    # 証明書とProvisioning ProfileはApp Store Connect APIキー経由でXcodeに作らせる。
+    # 手元にMacが無く、証明書を手動で書き出して秘密として持ち回ることができないため。
+    # Team ID は英単語特訓アプリと同じ開発者アカウントのもの。
+    DEVELOPMENT_TEAM: 5PT8D8SKN8
+    CODE_SIGN_STYLE: Automatic
+    # `info:` を使うと手書きの Info.plist が xcodegen generate のたびに上書きされる
+    # （CFBundleDisplayName と ITSAppUsesNonExemptEncryption がビルドから抜け落ちる）。
+    # 既存のファイルをそのまま使わせるため INFOPLIST_FILE を直接指定し、生成を切る。
+    GENERATE_INFOPLIST_FILE: NO
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_PREVIEWS: YES
+    # 2つのアプリターゲットでモジュール名を揃える。
+    # こうしないとテストの `@testable import` を級ごとに書き分けることになり、
+    # テストコードまで級に依存してしまう（テストは1組を両方のターゲットで走らせる）。
+    PRODUCT_MODULE_NAME: FPApp
+
+targets:
+  # ---------------------------------------------------------------- 3級
+  FP3App:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: FPApp
+      - path: FP3/AppFlavor.swift
+      - path: FP3/Resources
+    settings:
+      groups: [common]
+      base:
+        INFOPLIST_FILE: FP3/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.eitango.fp3
+        # 日本語＋スペースの PRODUCT_NAME はバンドル名・ビルドパスに波及し、
+        # テストターゲットの TEST_HOST 解決に失敗する。ホーム画面に出る名前は
+        # Info.plist の CFBundleDisplayName が担うため、ここはASCIIで固定する。
+        PRODUCT_NAME: FP3App
+
+  FP3AppTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: FPAppTests
+      # シードの妥当性をテストから検証するため、JSONそのものをバンドルに含める。
+      # 級ごとに別のファイルが入るので、同じテストコードが各級のデータを検査することになる
+      - path: FP3/Resources/question_master_seed.json
+        buildPhase: resources
+    settings:
+      groups: [common]
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.eitango.fp3.tests
+        PRODUCT_NAME: FP3AppTests
+        GENERATE_INFOPLIST_FILE: YES
+        # テストバンドルはアプリ本体のモジュールを import する側なので、
+        # モジュール名の統一（PRODUCT_MODULE_NAME）は適用しない
+        PRODUCT_MODULE_NAME: FP3AppTests
+    dependencies:
+      - target: FP3App
+
+  FP3AppUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: FPAppUITests
+      # 審査用スクリーンショットの撮影で、テスト用のストアを立てるのに読み込む。
+      # スキーム側の指定ではストアフロントを日本にできず、ドル表記になってしまうため、
+      # UIテストから SKTestSession で明示的に設定する。
+      # ファイル名は級をまたいで "Products" で揃える（テストコードが級に依存しないように）。
+      - path: FP3/Products.storekit
+        buildPhase: resources
+    settings:
+      groups: [common]
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.eitango.fp3.uitests
+        PRODUCT_NAME: FP3AppUITests
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_MODULE_NAME: FP3AppUITests
+    dependencies:
+      - target: FP3App
+
+  # ---------------------------------------------------------------- 2級
+  FP2App:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: FPApp
+      - path: FP2/AppFlavor.swift
+      - path: FP2/Resources
+    settings:
+      groups: [common]
+      base:
+        INFOPLIST_FILE: FP2/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.eitango.fp2
+        PRODUCT_NAME: FP2App
+
+  FP2AppTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: FPAppTests
+      - path: FP2/Resources/question_master_seed.json
+        buildPhase: resources
+    settings:
+      groups: [common]
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.eitango.fp2.tests
+        PRODUCT_NAME: FP2AppTests
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_MODULE_NAME: FP2AppTests
+    dependencies:
+      - target: FP2App
+
+  FP2AppUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: FPAppUITests
+      - path: FP2/Products.storekit
+        buildPhase: resources
+    settings:
+      groups: [common]
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.eitango.fp2.uitests
+        PRODUCT_NAME: FP2AppUITests
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_MODULE_NAME: FP2AppUITests
+    dependencies:
+      - target: FP2App
+
+schemes:
+  FP3App:
+    build:
+      targets:
+        FP3App: all
+        FP3AppTests: [test]
+        FP3AppUITests: [test]
+    # シミュレータにはApp Storeが無いため、StoreKitの設定ファイルを指定しないと
+    # 商品情報を取得できず、購入画面の価格が「読み込んでいます」のままになる。
+    run:
+      config: Debug
+      storeKitConfiguration: FP3/Products.storekit
+    # テスト実行時のストアはUIテスト側が SKTestSession で用意する。
+    # ここで指定するとストアフロントを米国から変えられず、審査用の画像がドル表記になる。
+    test:
+      config: Debug
+      targets:
+        - FP3AppTests
+        - FP3AppUITests
+    archive:
+      config: Release
+
+  FP2App:
+    build:
+      targets:
+        FP2App: all
+        FP2AppTests: [test]
+        FP2AppUITests: [test]
+    run:
+      config: Debug
+      storeKitConfiguration: FP2/Products.storekit
+    test:
+      config: Debug
+      targets:
+        - FP2AppTests
+        - FP2AppUITests
+    archive:
+      config: Release

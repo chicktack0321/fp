@@ -1,0 +1,241 @@
+name: TestFlight
+
+# 手動トリガーのみ。push のたびに配信するとTestFlightにビルドが溜まり、
+# テスターにも通知が飛び続けるため、上げたいときだけ実行する。
+#
+# 3級と2級は App Store Connect 上で別のアプリなので、どちらを上げるかを必ず選ぶ。
+# 「両方」を用意していないのは、片方の配信が失敗したときに
+# もう片方が上がったのかどうかを一目で判断できなくなるため。
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "配信するアプリ"
+        required: true
+        default: FP3App
+        type: choice
+        options:
+          - FP3App
+          - FP2App
+      dry_run:
+        description: "検証のみ（アップロードしない）。App Store Connect の登録前に、実機向けビルドが通るかを確かめるのに使う"
+        required: false
+        default: false
+        type: boolean
+      whats_new:
+        description: "テスターに表示する変更点（省略可）"
+        required: false
+        type: string
+
+jobs:
+  upload:
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 級固有のパスをここで1回だけ決める。各ステップで FP3/FP2 を書き分けると
+      # 片方だけ直し忘れて、3級のビルドに2級の問題データが入るような事故になる。
+      - name: Resolve target paths
+        id: target
+        run: |
+          APP="${{ inputs.app }}"
+          GRADE="${APP%App}"   # FP3App -> FP3
+          {
+            echo "app=$APP"
+            echo "grade=$GRADE"
+            echo "plist=$GRADE/Info.plist"
+            echo "seed=$GRADE/Resources/question_master_seed.json"
+          } >> "$GITHUB_OUTPUT"
+          echo "配信対象: $APP（$GRADE）"
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project from project.yml
+        run: xcodegen generate
+
+      # 問題データが壊れたまま配信しないよう、アーカイブの前に検証する。
+      # 配信する級だけを見れば足りる
+      - name: Validate question seed
+        run: python3 scripts/validate_seed.py "${{ steps.target.outputs.grade }}"
+
+      # 証明書とProvisioning Profileは -allowProvisioningUpdates で
+      # Xcodeに取得させる。そのためAPIキーをxcodebuildが読める場所に置く。
+      #
+      # dry run では鍵を置かない。アーカイブは署名しないので鍵が要るのは送信だけであり、
+      # App Store Connect の登録を済ませる前でも実機向けビルドの成否を確認できる。
+      - name: Write App Store Connect API key
+        if: ${{ !inputs.dry_run }}
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+        run: |
+          if [ -z "$ASC_API_KEY_P8" ] || [ -z "$ASC_API_KEY_ID" ]; then
+            echo "::error::ASC_API_KEY_P8 / ASC_API_KEY_ID が未設定です。リポジトリのSecretsを確認してください。"
+            exit 1
+          fi
+          mkdir -p "$HOME/private_keys"
+          printf '%s' "$ASC_API_KEY_P8" > "$HOME/private_keys/AuthKey_${ASC_API_KEY_ID}.p8"
+          chmod 600 "$HOME/private_keys/AuthKey_${ASC_API_KEY_ID}.p8"
+
+      # ビルド番号はワークフローの実行番号。App Store Connectは同じ
+      # (バージョン, ビルド番号) の組を二度受け付けないため、必ず増える値が要る。
+      #
+      # 3級と2級は別アプリなので番号を共有しても問題はない（それぞれのアプリで
+      # 単調増加していればよく、連番である必要はない）。
+      #
+      # ビルド設定として CURRENT_PROJECT_VERSION を渡す方法は効かない場合がある。
+      # Info.plist へ直接書き込んで確実に反映させる。
+      - name: Set build number
+        run: |
+          PLIST="${{ steps.target.outputs.plist }}"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" "$PLIST"
+          echo "CFBundleVersion=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")"
+
+      # archive では署名しない。
+      # 自動署名の archive は必ず「iOS App Development」プロファイルを要求するが、
+      # 開発用プロファイルは実機を1台以上登録していないと発行できず、
+      # TestFlightに配信するだけなら端末登録は本来不要。
+      # 署名は次の書き出しステップで配布用プロファイルを使って行う。
+      - name: Archive (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project FPApp.xcodeproj \
+            -scheme "${{ inputs.app }}" \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/${{ inputs.app }}.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS=""
+
+      # アップロードしてから App Store Connect 側で気付くと再ビルドが必要になるため、
+      # 実際に焼き込まれた Info.plist をここで検証する。
+      - name: Verify built Info.plist
+        run: |
+          APP="$RUNNER_TEMP/${{ inputs.app }}.xcarchive/Products/Applications/${{ inputs.app }}.app"
+          PLIST="$APP/Info.plist"
+          echo "--- built Info.plist ---"
+          plutil -p "$PLIST"
+
+          fail=0
+
+          # プライバシーマニフェスト。UserDefaults は Apple の Required Reason API に該当し、
+          # 宣言が無いと審査で指摘される。バンドルに入っていることを機械的に確認する
+          # （project.yml では明示していないため、XcodeGen の分類が変わると静かに抜け落ちる）。
+          if [ ! -f "$APP/PrivacyInfo.xcprivacy" ]; then
+            echo "::error::PrivacyInfo.xcprivacy がアプリに含まれていません"
+            fail=1
+          elif ! plutil -p "$APP/PrivacyInfo.xcprivacy" | grep -q NSPrivacyAccessedAPICategoryUserDefaults; then
+            echo "::error::PrivacyInfo.xcprivacy に UserDefaults の利用理由がありません"
+            fail=1
+          fi
+
+          # 問題データ。抜けても起動はするが、全画面が空になる
+          if [ ! -f "$APP/question_master_seed.json" ]; then
+            echo "::error::question_master_seed.json がアプリに含まれていません"
+            fail=1
+          else
+            # 級を取り違えたデータが入っていないか、バンドルの中身そのもので確かめる。
+            # 3級のアプリに2級の問題が入っていても、画面上は普通に動いてしまう。
+            GRADE="${{ steps.target.outputs.grade }}"
+            if ! grep -q "\"${GRADE}_" "$APP/question_master_seed.json"; then
+              echo "::error::同梱された問題データに ${GRADE}_ で始まるIDがありません（級の取り違え）"
+              fail=1
+            fi
+          fi
+
+          BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST")
+          if [ "$BUILD" != "${{ github.run_number }}" ]; then
+            echo "::error::ビルド番号が反映されていません（期待: ${{ github.run_number }} / 実際: $BUILD）"
+            fail=1
+          fi
+
+          # 未宣言だと App Store Connect が「コンプライアンスがありません」で配信を止める
+          if ! /usr/libexec/PlistBuddy -c "Print :ITSAppUsesNonExemptEncryption" "$PLIST" >/dev/null 2>&1; then
+            echo "::error::ITSAppUsesNonExemptEncryption が焼き込まれていません"
+            fail=1
+          fi
+
+          # ホーム画面に出る日本語のアプリ名
+          if ! /usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$PLIST" >/dev/null 2>&1; then
+            echo "::error::CFBundleDisplayName がありません（アプリ名が ${{ inputs.app }} になります）"
+            fail=1
+          fi
+
+          # バンドルIDの取り違えは公開後に直せない。ここで必ず止める
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST")
+          EXPECTED="com.eitango.$(echo "${{ steps.target.outputs.grade }}" | tr 'A-Z' 'a-z')"
+          if [ "$BUNDLE_ID" != "$EXPECTED" ]; then
+            echo "::error::バンドルIDが想定と違います（期待: $EXPECTED / 実際: $BUNDLE_ID）"
+            fail=1
+          fi
+
+          # アイコンが無いビルドは App Store Connect の処理段階で弾かれる。
+          # アップロードしてから気付くと配信が丸ごとやり直しになるので、ここで止める。
+          if ! /usr/libexec/PlistBuddy -c "Print :CFBundleIcons" "$PLIST" >/dev/null 2>&1; then
+            echo "::error::アプリアイコンが含まれていません（python scripts/make_app_icon.py を実行してコミットする）"
+            fail=1
+          fi
+          if [ ! -f "$APP/Assets.car" ]; then
+            echo "::error::Assets.car がありません（アセットカタログがビルドに含まれていない）"
+            fail=1
+          fi
+
+          [ "$fail" -eq 0 ] || exit 1
+          echo "OK: $BUNDLE_ID build=$BUILD / 暗号化宣言・表示名・アイコン・問題データ・プライバシーマニフェストすべて確認済み"
+
+      - name: Export and upload to TestFlight
+        if: ${{ !inputs.dry_run }}
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: |
+          set -o pipefail
+          # ExportOptions.plist の destination=upload により、書き出しと同時に送信される
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/${{ inputs.app }}.xcarchive" \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_${ASC_API_KEY_ID}.p8" \
+            -authenticationKeyID "$ASC_API_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_API_ISSUER_ID"
+
+      - name: Remove API key
+        if: always()
+        run: rm -rf "$HOME/private_keys"
+
+      - name: Summary
+        if: success()
+        run: |
+          {
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "### 検証のみ実行しました（アップロードなし）"
+              echo ""
+              echo "- 対象: ${{ inputs.app }}"
+              echo ""
+              echo "実機向けのアーカイブが通り、埋め込み内容の検証もすべて通過しました。"
+              echo "配信するには \`dry_run\` を外して再実行してください。"
+              echo "初回は \`docs/testflight-setup.md\` の準備（Secrets・App ID・アプリ登録）が要ります。"
+            else
+              echo "### TestFlightへアップロードしました"
+              echo ""
+              echo "- アプリ: ${{ inputs.app }}"
+              echo "- バージョン: 1.0 (ビルド ${{ github.run_number }})"
+              echo "- コミット: ${{ github.sha }}"
+              echo ""
+              echo "App Store Connectでの処理完了後、TestFlightに表示されます（通常5〜15分）。"
+              if [ -n "${{ inputs.whats_new }}" ]; then
+                echo ""
+                echo "変更点: ${{ inputs.whats_new }}"
+              fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,33 @@
+{
+  "identifier" : "A1B2C3D4-0000-0000-0000-FPGRADE0003",
+  "nonRenewingSubscriptions" : [],
+  "products" : [
+    {
+      "displayPrice" : "300",
+      "familyShareable" : false,
+      "internalID" : "B1C2D3E4-0001-0000-0000-FPGRADE0003",
+      "localizations" : [
+        {
+          "description" : "本試験の中心となる標準レベルの問題と、6つの係数を使った資金計算や税額計算を含む応用レベルの問題を、演習の出題対象に加えます。買い切りで、月額・年額の課金はありません。",
+          "displayName" : "標準・応用問題の解放",
+          "locale" : "ja"
+        }
+      ],
+      "productID" : "com.eitango.fp3.unlock.advanced",
+      "referenceName" : "Advanced questions unlock (FP3)",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "0",
+    "_developerTeamID" : "5PT8D8SKN8",
+    "_lastSynchronizedDate" : 0,
+    "_locale" : "ja_JP",
+    "_storefront" : "JPN"
+  },
+  "subscriptionGroups" : [],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}
