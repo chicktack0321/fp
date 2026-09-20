@@ -31,7 +31,10 @@ final class QuestionMaster {
     /// FP技能検定は級によって形式が違う。3級の学科は ○×式（2択）と三答択一式（3択）、
     /// 2級の学科は四答択一式（4択）。级ごとにモデルを分けると共通コードが
     /// 級を意識することになるため、1つのモデルで数を可変にしている。
-    var choiceCount: Int = Self.maxChoiceCount
+    /// 既定値で `Self.` を使わないのは、格納プロパティの初期化子から
+    /// covariant な `Self` を参照できないため（クラスなので継承先で型が変わりうる）。
+    /// 型名を直接書く。
+    var choiceCount: Int = QuestionMaster.maxChoiceCount
 
     var correctChoiceRaw: String
 
