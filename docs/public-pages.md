@@ -2,32 +2,38 @@
 
 App Store Connect の登録に必須の2ページ。**リンク先が404だと審査で差し戻される。**
 
-## 置き場所
+## 公開済みのURL（2026年9月21日）
 
-`FPn/AppFlavor.swift` に書いてあるURLに合わせて作る。
+**1サイトに集約し、3級・2級の両方から同じURLを指している。**
+同じ内容のページを級ごとに4枚保守すると必ず食い違うため。
+App Storeは複数のアプリで同じプライバシーポリシーURLを使うことを認めている。
+
+| 用途 | URL |
+| --- | --- |
+| サポート | `https://sites.google.com/view/fp-g3-g2/` |
+| プライバシーポリシー | `https://sites.google.com/view/fp-g3-g2/privacy-policy` |
+
+`FP3/AppFlavor.swift` と `FP2/AppFlavor.swift` の両方にこのURLを設定済み。
 アプリ内の「このアプリについて」と購入画面からも同じURLへリンクしている。
+**App Store Connect のサポートURL・プライバシーポリシーURLにも同じものを登録する。**
 
-| | 3級 | 2級 |
-| --- | --- | --- |
-| プライバシーポリシー | `https://sites.google.com/view/fp3-tokkun/privacy-policy` | `https://sites.google.com/view/fp2-tokkun/privacy-policy` |
-| サポート | `https://sites.google.com/view/fp3-tokkun/support` | `https://sites.google.com/view/fp2-tokkun/support` |
+サポートURLにページ名（`/ホーム`）ではなくサイトのルートを使っているのは、
+日本語のパスがパーセントエンコードされて `%E3%83%9B...` という読めないURLになり、
+環境によってはリンクが壊れるため。ルートでも同じ内容が表示される。
 
-### 1サイトにまとめてもよい
+## お問い合わせの受け口
 
-下の本文は**2つのアプリを1本の文章でカバーする**書き方にしてある。
-同じ内容のページを4枚保守すると必ず食い違うので、
-`https://sites.google.com/view/fp-tokkun/privacy-policy` のような1組のURLを作り、
-両方のアプリから同じURLを指す運用でもよい。App Storeは複数アプリで
-同じプライバシーポリシーURLを使うことを認めている。
+メールアドレスではなく**Googleフォーム**にしてある。
+公開ページにメールアドレスを載せると迷惑メールの対象になるため。
 
-その場合は `FP3/AppFlavor.swift` と `FP2/AppFlavor.swift` のURLを書き換えて、
-App Store Connect 側も同じURLに揃える。
+`https://forms.gle/zKB23sxWVF9r5uMA7`
 
-## 作る前に決めること
+下の本文中の `<問い合わせ用メールアドレス>` は、このフォームへのリンクに読み替える。
+なお App Store Connect の「審査に関する情報」には別途メールアドレスの入力が要るが、
+そちらは審査担当者しか見ないもので、公開はされない。
 
-- **問い合わせ用のメールアドレス。** 本文中の `<問い合わせ用メールアドレス>` を差し替える。
-  公開ページに載せると迷惑メールの対象になるため、**個人の常用アドレスではなく
-  このアプリ専用のアドレスを用意することを勧める**
+## 本文を変えるときに決めること
+
 - **運営者の表示名。** `<開発者名または屋号>` を差し替える。App Store Connect の
   著作権表記と揃える
 - **更新日。** 本文末尾の日付。内容を変えたら必ず更新する
@@ -318,7 +324,11 @@ Googleサイトでは、ページを追加するとURLの末尾が自動で決�
 
 ## 公開後にやること
 
-- [ ] 4つ（または2つ）のURLに**サインインしていない状態で**アクセスして表示されることを確認する
-- [ ] `FP3/AppFlavor.swift` と `FP2/AppFlavor.swift` のURLを実際のものに書き換える
+- [x] 2つのURLに**サインインしていない状態で**アクセスして表示されることを確認した
+- [x] `FP3/AppFlavor.swift` と `FP2/AppFlavor.swift` のURLを実際のものに書き換えた
 - [ ] App Store Connect のサポートURL・プライバシーポリシーURLに同じURLを登録する
 - [ ] アプリ内の「このアプリについて」と購入画面のリンクから実際に開けることを確認する
+      （次回のTestFlight配信以降）
+
+**ページの内容を変えたら、この `docs/public-pages.md` の本文も同時に直すこと。**
+公開ページとこのファイルが食い違うと、次に文面を見直すときにどちらが正か分からなくなる。

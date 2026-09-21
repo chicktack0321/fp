@@ -227,7 +227,6 @@ python scripts/make_app_icon.py   # 3級・2級の両方を書き出す
 | --- | --- |
 | **問題内容の人手レビュー** | **各級180問すべて未レビュー。**下記のとおり最優先 |
 | 問題数の拡充 | 各級600問程度が目標（現在180問）。細目あたり2問しかない領域（3級のCONSTAX・FINLAW・LOCALTAX・SME）から埋める |
-| 公開URL | `AppFlavor.privacyPolicyURL` / `supportURL` は仮のURL。公開前に実在のページへ差し替える |
 | App内課金の登録 | 未登録のため購入画面に価格が出ない（`docs/testflight-setup.md` §7） |
 | 模擬試験モード | Phase 3（設計仕様書 §11） |
 

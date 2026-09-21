@@ -178,16 +178,17 @@ App名とサブタイトルに入れた語はキーワードに重ねて入れ�
 
 ### 3.4 URL
 
-| 項目 | 3級 | 2級 |
-| --- | --- | --- |
-| サポートURL（必須） | `https://sites.google.com/view/fp3-tokkun/support` | `https://sites.google.com/view/fp2-tokkun/support` |
-| マーケティングURL（任意） | 設定しない | 設定しない |
-| プライバシーポリシーURL（必須） | `https://sites.google.com/view/fp3-tokkun/privacy-policy` | `https://sites.google.com/view/fp2-tokkun/privacy-policy` |
+**3級・2級で同じURLを登録する。** 1サイトに集約してあるため。
 
-> **この4つのURLはまだ実在しない。** `FPn/AppFlavor.swift` に書いてある仮のURLで、
-> アプリ内の「このアプリについて」と購入画面からも同じURLへリンクしている。
-> **提出前に実在するページを用意し、コードとApp Store Connectの両方を同じURLに揃える。**
-> リンク先が404だと審査で差し戻される。
+| 項目 | 3級・2級 共通 |
+| --- | --- |
+| サポートURL（必須） | `https://sites.google.com/view/fp-g3-g2/` |
+| マーケティングURL（任意） | 設定しない |
+| プライバシーポリシーURL（必須） | `https://sites.google.com/view/fp-g3-g2/privacy-policy` |
+
+いずれも公開済みで、サインインしていない状態で表示されることを確認済み。
+`FPn/AppFlavor.swift` にも同じURLを設定してあり、アプリ内の「このアプリについて」と
+購入画面から同じページへリンクする。ページの本文は `docs/public-pages.md` にある。
 
 ### 3.5 著作権
 
@@ -324,7 +325,7 @@ App内課金は買い切りの非消耗型で、演習に出題される問題�
 - [ ] バンドルIDが `project.yml` の `PRODUCT_BUNDLE_IDENTIFIER` と一致している
 - [ ] 課金の製品IDが `FPn/AppFlavor.swift` の `unlockProductID` と一致している
 - [ ] 課金の価格が `FPn/Products.storekit` の `displayPrice` と一致している
-- [ ] **サポートURL・プライバシーポリシーURLが実在し、`FPn/AppFlavor.swift` と同じURLになっている**
+- [x] サポートURL・プライバシーポリシーURLが実在し、`FPn/AppFlavor.swift` と同じURLになっている
 - [ ] スクリーンショットを**その級のアプリで**撮り直している
 - [ ] 説明文の級（3級/2級）と出題形式（○×式・三答択一式／四答択一式）が正しい
 - [ ] 説明文の法令基準日が `FPn/AppFlavor.swift` の `lawBasisDate` と一致している

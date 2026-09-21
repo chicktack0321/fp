@@ -30,8 +30,10 @@ enum AppFlavor {
             passingDescription: "100点満点中60点以上"
         ),
         lawBasisDate: "2026-04-01",
-        // TODO: 公開前に実在のページへ差し替える（App Store Connect にも同じURLを登録する）
-        privacyPolicyURL: URL(string: "https://sites.google.com/view/fp3-tokkun/privacy-policy")!,
-        supportURL: URL(string: "https://sites.google.com/view/fp3-tokkun/support")!
+        // 3級・2級で同じページを指す。同じ内容のページを級ごとに保守すると必ず食い違うため、
+        // 1つのサイトに集約して両アプリから参照している。
+        // App Store Connect のプライバシーポリシーURL・サポートURLにも同じものを登録すること。
+        privacyPolicyURL: URL(string: "https://sites.google.com/view/fp-g3-g2/privacy-policy")!,
+        supportURL: URL(string: "https://sites.google.com/view/fp-g3-g2/")!
     )
 }
