@@ -11,6 +11,7 @@
 | [docs/design-spec.md](docs/design-spec.md) | 設計仕様書。2ターゲット構成・データモデル・出題ロジック・課金・法的表示 |
 | [docs/question-authoring-prompt.md](docs/question-authoring-prompt.md) | AI作問プロンプト完全版と運用メモ |
 | [docs/testflight-setup.md](docs/testflight-setup.md) | TestFlightで実機確認できるようにするまでの手順（アプリ2本ぶん） |
+| [docs/appstore-listing.md](docs/appstore-listing.md) | App Store Connect に入力する登録内容（App名・説明・キーワード・課金・審査メモ） |
 
 ## 現在の状態
 
