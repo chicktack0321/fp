@@ -1,0 +1,23 @@
+[
+  {
+    "questionText": "PER（株価収益率）、PBR（株価純資産倍率）、ROE（自己資本利益率）の関係に関する説明として、最も適切なものはどれか。",
+    "choices": {
+      "A": "PBR ＝ PER × ROE の関係が成り立つ",
+      "B": "PER ＝ PBR × ROE の関係が成り立つ",
+      "C": "ROE ＝ PER × PBR の関係が成り立つ",
+      "D": "3つの指標の間に、算式で表せる関係はない"
+    },
+    "correctChoice": "A",
+    "explanation": "PER＝株価÷1株当たり純利益、ROE＝1株当たり純利益÷1株当たり純資産なので、両者を掛けると株価÷1株当たり純資産＝PBRとなる。同じPBRでも、ROEが高ければPERは低く（割安に）なる関係にある。",
+    "choiceExplanations": {
+      "A": "正解。PER×ROE＝（株価÷1株当たり純利益）×（1株当たり純利益÷1株当たり純資産）＝株価÷1株当たり純資産＝PBRとなる。",
+      "B": "不正解。式を変形するとPER＝PBR÷ROEであり、乗算ではない。",
+      "C": "不正解。ROE＝PBR÷PERであり、乗算ではない。",
+      "D": "不正解。3つの指標は1株当たり純利益と1株当たり純資産を介してつながっており、算式で表せる。"
+    },
+    "field": "financialAssets",
+    "midCategory": "EQUITY",
+    "keywords": ["PER", "PBR", "ROE", "指標の関係"],
+    "difficulty": 3
+  }
+]
