@@ -18,8 +18,8 @@ CI（`ios-build.yml`）はシミュレータ上での動作までしか見てい
 | 0 | バンドルID の確定 | ✅ `com.eitango.fp3` | ✅ `com.eitango.fp2` |
 | 1 | 実機向けビルドの確認（dry run） | ✅ アーカイブ・埋め込み内容の検証とも通過 | ✅ 同左 |
 | 2 | GitHub Secrets（2アプリ共通） | ✅ 3つとも登録済み | ✅ 同左 |
-| 3 | App ID の登録 | ⬜ | ⬜ |
-| 4 | App Store Connect でのアプリ登録 | ⬜ | ⬜ |
+| 3 | App ID の登録 | ✅ 完了 | ✅ 完了 |
+| 4 | App Store Connect でのアプリ登録 | ✅ 完了 | ✅ 完了 |
 | 5 | 配信 | ⬜ | ⬜ |
 | 7 | App内課金の登録 | ⬜ | ⬜ |
 
