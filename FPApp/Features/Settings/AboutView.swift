@@ -35,6 +35,9 @@ struct AboutView: View {
             }
 
             Section("利用状況") {
+                // 問い合わせで最初に聞くのがバージョンなので、利用者が自分で見つけられる場所に出す。
+                // サポートページでも「このアプリについてで確認できます」と案内している
+                LabeledContent("バージョン", value: AppInfo.versionDescription)
                 LabeledContent("出題できる問題", value: entitlements.accessSummary)
                 if let remaining = entitlements.trialDaysRemaining {
                     LabeledContent("お試し期間", value: "残り\(remaining)日")
