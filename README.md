@@ -12,6 +12,7 @@
 | [docs/question-authoring-prompt.md](docs/question-authoring-prompt.md) | AI作問プロンプト完全版と運用メモ |
 | [docs/testflight-setup.md](docs/testflight-setup.md) | TestFlightで実機確認できるようにするまでの手順（アプリ2本ぶん） |
 | [docs/appstore-listing.md](docs/appstore-listing.md) | App Store Connect に入力する登録内容（App名・説明・キーワード・課金・審査メモ） |
+| [docs/public-pages.md](docs/public-pages.md) | プライバシーポリシーとサポートページの本文（審査に必須） |
 
 ## 現在の状態
 
