@@ -71,10 +71,20 @@ Secretsもアプリ登録も不要。アーカイブを作り、埋め込まれ�
 
 | Secret | 内容 | 状態 |
 | --- | --- | --- |
-| `ASC_API_KEY_ID` | APIキーの Key ID。`F5R7YD55S6`（キー名: GitHub Actions CI / アクセス: App Manager） | ✅ 登録済み |
+| `ASC_API_KEY_ID` | APIキーの Key ID。`F5R7YD55S6`（キー名: GitHub Actions CI） | ✅ 登録済み |
 | `ASC_API_KEY_P8` | `.p8` の中身（BEGIN/END行を含む全文） | ✅ 登録済み |
 | `ASC_API_ISSUER_ID` | Issuer ID（UUID形式） | ✅ 登録済み |
 
+> **キーのアクセス権は「管理者（Admin）」にすること。**
+> このワークフローは `-allowProvisioningUpdates` でクラウド署名を使い、証明書と
+> プロビジョニングプロファイルをXcodeに作らせる。証明書の作成にはAdminが要る。
+> 「App Manager」で作ると、ビルドもアーカイブも通ったうえで書き出しだけが
+> `Cloud signing permission error` / `No profiles for '<バンドルID>' were found` で落ちる。
+> 権限不足だと分かる文言が出ないので、アプリ登録の漏れと取り違えやすい。
+>
+> キーの権限は App Store Connect の同じ画面（アクティブなキーの「編集」）で後から変更できる。
+> 変更しても Key ID と `.p8` は変わらないため、**Secretsの入れ直しは不要**。
+>
 > **2026年9月21日: キーを作り直した。** 旧キー `3V2TDP49RN` は `.p8` を紛失したため無効化済み。
 > `.p8` は発行時の一度しかダウンロードできず、再取得できないため作り直すしかない。
 >
@@ -245,6 +255,7 @@ Sandbox環境で購入を試せる（実際の課金は発生しない）。
 | `バンドルIDが想定と違います` | `project.yml` と `FPn/AppFlavor.swift` の値がずれている |
 | `同梱された問題データに FP3_ で始まるIDがありません` | `project.yml` のターゲットが参照している `Resources` が別の級のものになっている |
 | 送信ステップで `No suitable application records were found` | §4のアプリ登録がまだ。バンドルIDの綴りも確認する |
-| `No profiles for 'com.eitango.fp3' were found` | §3のApp ID登録がまだ |
+| `Cloud signing permission error` と `No profiles for ... were found` が**同時に**出る | APIキーのアクセス権が足りない。§2のとおり「管理者（Admin）」にする。App Managerでは証明書を作れない |
+| `No profiles for 'com.eitango.fp3' were found` だけが出る | §3のApp ID登録がまだ |
 | ビルド番号が重複していると言われる | App Store Connectは同じ（バージョン, ビルド番号）を二度受け付けない。ワークフローは実行番号を使うので、通常は起きない。バージョンを上げるときは `project.yml` の `MARKETING_VERSION` を変更する |
 | TestFlightにビルドが出てこない | 処理に5〜15分かかる。それ以上なら、App Store Connectから届くメールに理由が書かれている |
