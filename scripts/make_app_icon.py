@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
-"""アプリアイコンとアプリ内ロゴを級ごとに書き出す。
+"""元画像からアプリアイコンとアプリ内ロゴを級ごとに書き出す。
 
-元になる絵柄を外から受け取らず、この場で描いている。
-理由は、3級と2級で変わるのが級の表記だけであり、画像編集ソフトで2枚を別々に保守すると
-色や字詰めが必ずずれるため。描画条件をコードに置けば、2つのアイコンは常に同じ体裁になる。
+絵柄そのものはこのスクリプトでは扱わない。文字や配色を変えたいときは
+元画像（`docs/assets/fpN-icon-source.png`）を直すこと。
+ここにあるのは「App Storeに出せる形かどうかを検査して書き出す」処理だけ。
 
-App Store のアイコンには決まりがある。
+App Store のアイコンには決まりがある。満たしていなければ止める。
   - 1024x1024 の正方形
   - アルファチャンネルを持たない（透過があると審査で弾かれる）
   - 角丸を焼き込まない（Apple 側がマスクをかけるので、素材に角丸があると角に縁が残る）
 
-アプリ内ロゴ（AppLogo）も同じ絵柄から作る。こちらは cornerRadius: 10 の浅いクリップなので、
+加えて、絵柄が Apple の角丸マスクの外にはみ出していないかも見る。
+はみ出しはビルドも審査も通ってしまい、ホーム画面に並べて初めて気付く類の欠陥なので、
+書き出しのたびに機械で確かめる。
+
+アプリ内ロゴ（AppLogo）も同じ元画像から作る。こちらは cornerRadius: 10 の浅いクリップなので、
 角丸なしの正方形でないと角の残りがそのまま見える。
 
 使い方: リポジトリのどこからでも `python scripts/make_app_icon.py`
@@ -19,108 +23,91 @@ App Store のアイコンには決まりがある。
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 
 ICON_SIZE = 1024
 LOGO_SIZES = [("AppLogo.png", 80), ("AppLogo@2x.png", 160), ("AppLogo@3x.png", 240)]
 
-# 級ごとの配色。3級は入門らしい青、2級はひとつ深い藍にして、
-# ホーム画面に2つ並んだときに取り違えないようにする（形と字は同じなので色で分ける）
 GRADES = {
-    "FP3": {"badge": "3級", "top": (56, 122, 223), "bottom": (24, 62, 140)},
-    "FP2": {"badge": "2級", "top": (86, 96, 204), "bottom": (38, 32, 104)},
+    "FP3": ROOT / "docs/assets/fp3-icon-source.png",
+    "FP2": ROOT / "docs/assets/fp2-icon-source.png",
 }
 
-# 日本語（「級」）が出る太めのフォントを順に探す。
-# 見つからないと豆腐（□）が焼き込まれたアイコンができてしまうので、無ければ止める。
-JP_FONT_CANDIDATES = [
-    "C:/Windows/Fonts/YuGothB.ttc",
-    "C:/Windows/Fonts/meiryob.ttc",
-    "C:/Windows/Fonts/msgothic.ttc",
-    "/System/Library/Fonts/ttf/HiraginoSans-W7.ttc",
-    "/System/Library/Fonts/Hiragino Sans W7.ttc",
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
-]
-# ラテン字（"FP"）は和文フォントの欧文より、専用の太字のほうが字面が締まる
-LATIN_FONT_CANDIDATES = [
-    "C:/Windows/Fonts/arialbd.ttf",
-    "C:/Windows/Fonts/segoeuib.ttf",
-    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-] + JP_FONT_CANDIDATES
+# 背景からこれだけ離れていれば絵柄とみなす（RGB各成分の差の合計）
+CONTENT_DELTA = 40
+
+# iOSのアイコンマスクの近似。Appleのマスクは円弧ではなく superellipse なので、
+# 円弧で判定すると実際には切れない絵柄まではみ出し扱いになる。
+SUPERELLIPSE_EXPONENT = 5.0
 
 
-def load_font(candidates, size):
-    for path in candidates:
-        if Path(path).exists():
-            try:
-                return ImageFont.truetype(path, size)
-            except OSError:
-                continue
-    return None
+def load_source(path: Path) -> Image.Image:
+    if not path.exists():
+        raise SystemExit(f"元画像が見つかりません: {path}")
 
+    im = Image.open(path)
 
-def vertical_gradient(size, top, bottom):
-    """縦のグラデーション。単色だと他の学習アプリに埋もれる"""
-    gradient = Image.new("RGB", (1, size))
-    for y in range(size):
-        t = y / max(size - 1, 1)
-        gradient.putpixel(
-            (0, y),
-            tuple(round(top[i] + (bottom[i] - top[i]) * t) for i in range(3)),
-        )
-    return gradient.resize((size, size), Image.BICUBIC)
-
-
-def centered(draw, font, text):
-    """テキストの実寸（bbox）を返す。フォントの行送りを含む高さで中央を取ると、
-    字面が上寄りに見えるため必ず bbox から測る"""
-    box = draw.textbbox((0, 0), text, font=font)
-    return box[2] - box[0], box[3] - box[1], box[0], box[1]
-
-
-def draw_icon(grade: str, spec: dict) -> Image.Image:
-    size = ICON_SIZE
-    image = vertical_gradient(size, spec["top"], spec["bottom"])
-    draw = ImageDraw.Draw(image)
-
-    latin = load_font(LATIN_FONT_CANDIDATES, int(size * 0.42))
-    jp = load_font(JP_FONT_CANDIDATES, int(size * 0.17))
-    if latin is None or jp is None:
+    if im.size != (ICON_SIZE, ICON_SIZE):
         raise SystemExit(
-            "日本語の太字フォントが見つかりません。JP_FONT_CANDIDATES にパスを足してください。"
+            f"{path.name}: {im.size[0]}x{im.size[1]} です。"
+            f"App Storeのアイコンは {ICON_SIZE}x{ICON_SIZE} の正方形でなければなりません。"
         )
 
-    # "FP" は中央よりやや上。下に級のバッジを置く前提で重心を取る
-    w, h, ox, oy = centered(draw, latin, "FP")
-    draw.text(
-        ((size - w) / 2 - ox, size * 0.38 - h / 2 - oy),
-        "FP",
-        font=latin,
-        fill=(255, 255, 255),
+    # 透過があるとApp Store Connectがアップロードを弾く。
+    # RGBへ変換するだけだと透明部分が黒く落ちるので、白地に載せてから落とす。
+    if im.mode in ("RGBA", "LA") or "transparency" in im.info:
+        print(f"  警告: {path.name} に透過があります。白地に載せてから不透明化します")
+        background = Image.new("RGB", im.size, (255, 255, 255))
+        background.paste(im.convert("RGBA"), mask=im.convert("RGBA").split()[-1])
+        return background
+
+    return im.convert("RGB")
+
+
+def content_pixels(im: Image.Image) -> list[tuple[int, int]]:
+    """絵柄の画素を拾う。
+
+    各行の左端を背景色とみなす。背景が縦のグラデーションでも行ごとに基準を取り直すので、
+    グラデーション自体を絵柄と誤認しない。
+    """
+    width, height = im.size
+    px = im.load()
+    points = []
+    for y in range(height):
+        bg = px[0, y]
+        for x in range(width):
+            c = px[x, y]
+            if abs(c[0] - bg[0]) + abs(c[1] - bg[1]) + abs(c[2] - bg[2]) > CONTENT_DELTA:
+                points.append((x, y))
+    return points
+
+
+def check_mask(im: Image.Image, name: str) -> None:
+    """絵柄がAppleの角丸マスクの外に出ていないか確かめる"""
+    points = content_pixels(im)
+    if not points:
+        raise SystemExit(f"{name}: 背景一色で絵柄がありません")
+
+    half = ICON_SIZE / 2.0
+    outside = sum(
+        1
+        for x, y in points
+        if (abs(x + 0.5 - half) / half) ** SUPERELLIPSE_EXPONENT
+        + (abs(y + 0.5 - half) / half) ** SUPERELLIPSE_EXPONENT
+        > 1.0
     )
 
-    # 級のバッジ。白地に級の色で抜くと、小さく縮めても「3」「2」が潰れない
-    badge = spec["badge"]
-    bw, bh, box_x, box_y = centered(draw, jp, badge)
-    pad_x, pad_y = size * 0.075, size * 0.045
-    box_w, box_h = bw + pad_x * 2, bh + pad_y * 2
-    left, top = (size - box_w) / 2, size * 0.66
-    draw.rounded_rectangle(
-        [left, top, left + box_w, top + box_h],
-        radius=box_h / 2,
-        fill=(255, 255, 255),
-    )
-    draw.text(
-        (left + pad_x - box_x, top + pad_y - box_y),
-        badge,
-        font=jp,
-        fill=spec["bottom"],
-    )
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    print(f"  絵柄の範囲: x {min(xs)}..{max(xs)} / y {min(ys)}..{max(ys)}")
 
-    return image
+    if outside:
+        raise SystemExit(
+            f"{name}: 絵柄が角丸マスクの外に{outside}画素はみ出しています。"
+            "ホーム画面で角が切れます。元画像の余白を広げてください。"
+        )
 
 
 def write(grade: str, image: Image.Image) -> None:
@@ -141,9 +128,11 @@ def write(grade: str, image: Image.Image) -> None:
 
 
 def main() -> int:
-    for grade, spec in GRADES.items():
-        print(f"{grade}:")
-        write(grade, draw_icon(grade, spec))
+    for grade, source in GRADES.items():
+        print(f"{grade}  ← {source.relative_to(ROOT)}")
+        image = load_source(source)
+        check_mask(image, source.name)
+        write(grade, image)
     return 0
 
 
