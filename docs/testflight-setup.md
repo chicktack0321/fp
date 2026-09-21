@@ -15,9 +15,9 @@ CI（`ios-build.yml`）はシミュレータ上での動作までしか見てい
 
 | | 項目 | 3級 | 2級 |
 | --- | --- | --- | --- |
-| 0 | バンドルID の確定 | ⬜ `com.eitango.fp3` | ⬜ `com.eitango.fp2` |
+| 0 | バンドルID の確定 | ✅ `com.eitango.fp3` | ✅ `com.eitango.fp2` |
 | 1 | 実機向けビルドの確認（dry run） | ⬜ | ⬜ |
-| 2 | GitHub Secrets（2アプリ共通） | ⬜ | ⬜ |
+| 2 | GitHub Secrets（2アプリ共通） | ✅ 3つとも登録済み | ✅ 同左 |
 | 3 | App ID の登録 | ⬜ | ⬜ |
 | 4 | App Store Connect でのアプリ登録 | ⬜ | ⬜ |
 | 5 | 配信 | ⬜ | ⬜ |
@@ -69,11 +69,19 @@ Secretsもアプリ登録も不要。アーカイブを作り、埋め込まれ�
 キーは開発者アカウント単位なので、アプリごとに作り直す必要はない。
 3級と2級は同じリポジトリなので、Secretsも1組で足りる。
 
-| Secret | 内容 |
-| --- | --- |
-| `ASC_API_KEY_ID` | APIキーの Key ID |
-| `ASC_API_KEY_P8` | `.p8` の中身（BEGIN/END行を含む全文） |
-| `ASC_API_ISSUER_ID` | Issuer ID（UUID形式） |
+| Secret | 内容 | 状態 |
+| --- | --- | --- |
+| `ASC_API_KEY_ID` | APIキーの Key ID。`F5R7YD55S6`（キー名: GitHub Actions CI / アクセス: App Manager） | ✅ 登録済み |
+| `ASC_API_KEY_P8` | `.p8` の中身（BEGIN/END行を含む全文） | ✅ 登録済み |
+| `ASC_API_ISSUER_ID` | Issuer ID（UUID形式） | ✅ 登録済み |
+
+> **2026年9月21日: キーを作り直した。** 旧キー `3V2TDP49RN` は `.p8` を紛失したため無効化済み。
+> `.p8` は発行時の一度しかダウンロードできず、再取得できないため作り直すしかない。
+>
+> **同じキーを使い回していた他のリポジトリのSecretsも更新が必要。**
+> 更新しないと、それらのアプリのTestFlight配信が送信ステップで失敗する
+> （ビルドは通るので、気付くのはアップロードの直前になる）。
+> 対象: `ITpassport` / `eitango_tokkun` / `eitango_target1900` / `kobun_tokkun`
 
 `.p8` はファイルから流し込むと改行が崩れない。
 
@@ -90,7 +98,16 @@ Key ID は `.p8` のファイル名に含まれているが、**Issuer ID はキ
 そちらから写すことはできない。
 
 `.p8` を無くした場合も再ダウンロードできない。同じ画面で新しいキーを作り、
-既存アプリのSecretsもそのとき合わせて更新する。
+**同じキーを使っている全リポジトリのSecretsをそのとき合わせて更新する**
+（1回だけダウンロードできる `.p8` を、その場で全リポジトリへ流し込んでしまうのが確実）。
+
+```bash
+for r in fp ITpassport eitango_tokkun eitango_target1900 kobun_tokkun; do
+  gh secret set ASC_API_KEY_ID    -R chicktack0321/$r --body "<Key ID>"
+  gh secret set ASC_API_ISSUER_ID -R chicktack0321/$r --body "<Issuer ID>"
+  gh secret set ASC_API_KEY_P8    -R chicktack0321/$r < /path/to/AuthKey_XXXXXXXXXX.p8
+done
+```
 
 登録できたか確認:
 
