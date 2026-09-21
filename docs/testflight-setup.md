@@ -82,8 +82,10 @@ Secretsもアプリ登録も不要。アーカイブを作り、埋め込まれ�
 > `Cloud signing permission error` / `No profiles for '<バンドルID>' were found` で落ちる。
 > 権限不足だと分かる文言が出ないので、アプリ登録の漏れと取り違えやすい。
 >
-> キーの権限は App Store Connect の同じ画面（アクティブなキーの「編集」）で後から変更できる。
-> 変更しても Key ID と `.p8` は変わらないため、**Secretsの入れ直しは不要**。
+> **キーのアクセス権は作成後に変更できない。** キー一覧の「編集」でできるのは
+> 表示と無効化までで、名前もアクセス権も後から変えられない。
+> 権限を間違えたら、**管理者で新しいキーを作り直す**しかない（＝ `.p8` の配り直しも要る）。
+> キーを作るときのアクセス権の選択が、あとで取り返しのつかない唯一の項目になる。
 >
 > **2026年9月21日: キーを作り直した。** 旧キー `3V2TDP49RN` は `.p8` を紛失したため無効化済み。
 > `.p8` は発行時の一度しかダウンロードできず、再取得できないため作り直すしかない。
@@ -255,7 +257,7 @@ Sandbox環境で購入を試せる（実際の課金は発生しない）。
 | `バンドルIDが想定と違います` | `project.yml` と `FPn/AppFlavor.swift` の値がずれている |
 | `同梱された問題データに FP3_ で始まるIDがありません` | `project.yml` のターゲットが参照している `Resources` が別の級のものになっている |
 | 送信ステップで `No suitable application records were found` | §4のアプリ登録がまだ。バンドルIDの綴りも確認する |
-| `Cloud signing permission error` と `No profiles for ... were found` が**同時に**出る | APIキーのアクセス権が足りない。§2のとおり「管理者（Admin）」にする。App Managerでは証明書を作れない |
+| `Cloud signing permission error` と `No profiles for ... were found` が**同時に**出る | APIキーのアクセス権が足りない。App Managerでは証明書を作れない。権限は後から変えられないので、**管理者で新しいキーを作り直す**（§2） |
 | `No profiles for 'com.eitango.fp3' were found` だけが出る | §3のApp ID登録がまだ |
 | ビルド番号が重複していると言われる | App Store Connectは同じ（バージョン, ビルド番号）を二度受け付けない。ワークフローは実行番号を使うので、通常は起きない。バージョンを上げるときは `project.yml` の `MARKETING_VERSION` を変更する |
 | TestFlightにビルドが出てこない | 処理に5〜15分かかる。それ以上なら、App Store Connectから届くメールに理由が書かれている |
